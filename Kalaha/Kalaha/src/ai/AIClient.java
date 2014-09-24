@@ -189,15 +189,18 @@ public class AIClient implements Runnable {
         int myMove;
         GameState clonedBoard = currentBoard.clone();
         GameNode root;
-        int maxLevel = 2;
+        int maxLevel = 8;
         long start = currentTimeMillis();
+        long lastDuration = 0;
         int currentMax;
-        
+
         do {
             root = new GameNode(clonedBoard, 0);
             currentMax = expandTree(root, maxLevel);
+            lastDuration = currentTimeMillis() - lastDuration - start;
+            System.out.println("depth : " + maxLevel + " in " + lastDuration + "ms");
             maxLevel += 2;
-        } while (currentTimeMillis() - start < 1000);
+        } while (currentTimeMillis() + Math.pow(lastDuration, 2) - start < 5000);
 
         //int currentMax = expandTree(root, maxLevel);
         myMove = root.children.get(0).move;
@@ -214,7 +217,7 @@ public class AIClient implements Runnable {
         if (node.level < maxLevel && validMoves > 0) {
             int minMax = 0;
             for (int move = 1; move <= 6; move++) {
-                if (node.state.moveIsPossible(move)) {
+                if (node.state.moveIsPossible(move) && !pruning(minMax, node)) {
                     GameState childState = node.state.clone();
                     childState.makeMove(move);
                     GameNode child = new GameNode(childState, node.level + 1, move);
@@ -230,13 +233,21 @@ public class AIClient implements Runnable {
             return evaluation(node.state);
         }
     }
+    
+    public boolean pruning(int minMax, GameNode node){
+        if (node.parent != null) {
+            return (node.level % 2 == 1) ? minMax < node.parent.minMax : minMax > node.parent.minMax ;
+        } else {
+            return false;
+        }
+    }
 
     public int minMax(int level, int currentMinMax, int value) {
         return (level % 2 == 1) ? Math.max(currentMinMax, value) : Math.min(currentMinMax, value);
     }
 
     public int utility(GameState state) {
-        return (player == 1) ? state.getScore(1) - state.getScore(2) : state.getScore(2) - state.getScore(1);
+        return (player == 1) ? state.getScore(2) - state.getScore(1) : state.getScore(1) - state.getScore(2);
     }
 
     public int evaluation(GameState state) {
@@ -245,6 +256,7 @@ public class AIClient implements Runnable {
 
     public class GameNode {
 
+        public GameNode parent;
         public int minMax;
         public int move;
         public int level;
@@ -263,6 +275,7 @@ public class AIClient implements Runnable {
         }
 
         public void addChild(GameNode child) {
+            child.parent = this;
             children.add(child);
         }
     }
