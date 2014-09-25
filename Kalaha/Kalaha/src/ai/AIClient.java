@@ -7,6 +7,7 @@ import javax.swing.*;
 import java.awt.*;
 import static java.lang.System.currentTimeMillis;
 import java.util.ArrayList;
+import java.util.Random;
 import kalaha.*;
 
 /**
@@ -26,6 +27,7 @@ public class AIClient implements Runnable {
     private Socket socket;
     private boolean running;
     private boolean connected;
+    private boolean stop = false;
 
     /**
      * Creates a new client.
@@ -189,10 +191,10 @@ public class AIClient implements Runnable {
         int myMove;
         GameState clonedBoard = currentBoard.clone();
         GameNode root;
-        int maxLevel = 8;
+        int maxLevel = 10;
         long start = currentTimeMillis();
         long lastDuration = 0;
-        int currentMax;
+        int currentMax;        
 
         do {
             root = new GameNode(clonedBoard, 0);
@@ -200,54 +202,65 @@ public class AIClient implements Runnable {
             lastDuration = currentTimeMillis() - lastDuration - start;
             System.out.println("depth : " + maxLevel + " in " + lastDuration + "ms");
             maxLevel += 2;
-        } while (currentTimeMillis() + Math.pow(lastDuration, 2) - start < 5000);
+        } while (currentTimeMillis() + Math.pow(lastDuration, 2) - start < 5000 && !stop);
 
-        //int currentMax = expandTree(root, maxLevel);
-        myMove = root.children.get(0).move;
+        ArrayList<Integer> possibleMoves = new ArrayList<>();
+
         for (GameNode c : root.children) {
             if (c.minMax == currentMax) {
-                myMove = c.move;
+                possibleMoves.add(c.move);
             }
         }
-        return myMove;
+
+        Random rand = new Random();
+        int randomNum = rand.nextInt(possibleMoves.size());
+        System.out.println("-------");
+
+        return possibleMoves.get(randomNum);
     }
 
     public int expandTree(GameNode node, int maxLevel) {
         int validMoves = node.state.getNoValidMoves(node.state.getNextPlayer());
         if (node.level < maxLevel && validMoves > 0) {
-            int minMax = 0;
+            Integer minMax = null;
             for (int move = 1; move <= 6; move++) {
                 if (node.state.moveIsPossible(move) && !pruning(minMax, node)) {
                     GameState childState = node.state.clone();
                     childState.makeMove(move);
                     GameNode child = new GameNode(childState, node.level + 1, move);
                     node.addChild(child);
-                    minMax = minMax(node.level, minMax, expandTree(child, maxLevel));
+                    minMax = minMax(node.state, minMax, expandTree(child, maxLevel));
                 }
             }
             node.minMax = minMax;
             return minMax;
         } else if (validMoves == 0) {
+            stop = true;
             return utility(node.state);
         } else {
+            stop = false;
             return evaluation(node.state);
         }
     }
-    
-    public boolean pruning(int minMax, GameNode node){
-        if (node.parent != null) {
-            return (node.level % 2 == 1) ? minMax < node.parent.minMax : minMax > node.parent.minMax ;
+
+    public boolean pruning(Integer minMax, GameNode node) {
+        if (node.parent != null && minMax != null) {
+            return (node.state.getNextPlayer() == player) ? minMax <= node.parent.minMax : minMax >= node.parent.minMax;
         } else {
             return false;
         }
     }
 
-    public int minMax(int level, int currentMinMax, int value) {
-        return (level % 2 == 1) ? Math.max(currentMinMax, value) : Math.min(currentMinMax, value);
+    public int minMax(GameState state, Integer currentMinMax, int value) {
+        if (currentMinMax == null) {
+            return value;
+        } else {
+            return (state.getNextPlayer() == player) ? Math.max(currentMinMax, value) : Math.min(currentMinMax, value);
+        }
     }
 
     public int utility(GameState state) {
-        return (player == 1) ? state.getScore(2) - state.getScore(1) : state.getScore(1) - state.getScore(2);
+        return (player == 1) ? state.getScore(1) - state.getScore(2) : state.getScore(2) - state.getScore(1);
     }
 
     public int evaluation(GameState state) {
