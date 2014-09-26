@@ -191,7 +191,7 @@ public class AIClient implements Runnable {
         int myMove;
         GameState clonedBoard = currentBoard.clone();
         GameNode root;
-        int maxLevel = 10;
+        int maxLevel = 2;
         long start = currentTimeMillis();
         long lastDuration = 0;
         int currentMax;        
@@ -223,8 +223,8 @@ public class AIClient implements Runnable {
         int validMoves = node.state.getNoValidMoves(node.state.getNextPlayer());
         if (node.level < maxLevel && validMoves > 0) {
             Integer minMax = null;
-            for (int move = 1; move <= 6; move++) {
-                if (node.state.moveIsPossible(move) && !pruning(minMax, node)) {
+            for (int move = 1; move <= 6 && !pruning(minMax, node); move++) {
+                if (node.state.moveIsPossible(move)) {
                     GameState childState = node.state.clone();
                     childState.makeMove(move);
                     GameNode child = new GameNode(childState, node.level + 1, move);
