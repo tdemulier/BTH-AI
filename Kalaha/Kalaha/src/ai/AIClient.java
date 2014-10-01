@@ -28,6 +28,7 @@ public class AIClient implements Runnable {
     private boolean running;
     private boolean connected;
     private boolean stop = false;
+    private int moveNb = 1;
 
     /**
      * Creates a new client.
@@ -194,18 +195,17 @@ public class AIClient implements Runnable {
         int maxLevel = 2;
         long start = currentTimeMillis();
         long lastDuration = 0;
-        int currentMax;        
+        int currentMax;
 
         do {
             root = new GameNode(clonedBoard, 0);
             currentMax = expandTree(root, maxLevel);
             lastDuration = currentTimeMillis() - lastDuration - start;
             System.out.println("depth : " + maxLevel + " in " + lastDuration + "ms");
-            maxLevel += 2;
-        } while (currentTimeMillis() + Math.pow(lastDuration, 2) - start < 5000 && !stop);
-
+            maxLevel += 1;
+        } while (currentTimeMillis() + Math.pow(lastDuration, 1.35) - start < 5000 && !stop);
+        
         ArrayList<Integer> possibleMoves = new ArrayList<>();
-
         for (GameNode c : root.children) {
             if (c.minMax == currentMax) {
                 possibleMoves.add(c.move);
@@ -214,15 +214,20 @@ public class AIClient implements Runnable {
 
         Random rand = new Random();
         int randomNum = rand.nextInt(possibleMoves.size());
+        int move = possibleMoves.get(randomNum);
+        System.out.println("move choosen : " + move);
+        System.out.println(currentBoard.getSeeds(move, player) + " pubbles moved");
+        System.out.println("move n° " + moveNb++ +" / player " + player);
         System.out.println("-------");
 
-        return possibleMoves.get(randomNum);
+        return move;
     }
 
     public int expandTree(GameNode node, int maxLevel) {
+        
         int validMoves = node.state.getNoValidMoves(node.state.getNextPlayer());
+        Integer minMax = null;
         if (node.level < maxLevel && validMoves > 0) {
-            Integer minMax = null;
             for (int move = 1; move <= 6 && !pruning(minMax, node); move++) {
                 if (node.state.moveIsPossible(move)) {
                     GameState childState = node.state.clone();
@@ -232,15 +237,15 @@ public class AIClient implements Runnable {
                     minMax = minMax(node.state, minMax, expandTree(child, maxLevel));
                 }
             }
-            node.minMax = minMax;
-            return minMax;
         } else if (validMoves == 0) {
             stop = true;
-            return utility(node.state);
+            minMax = utility(node.state);
         } else {
             stop = false;
-            return evaluation(node.state);
+            minMax = evaluation(node.state);
         }
+        node.minMax = minMax;
+        return minMax;
     }
 
     public boolean pruning(Integer minMax, GameNode node) {
