@@ -189,61 +189,68 @@ public class AIClient implements Runnable {
      * @return Move to make (1-6)
      */
     public int getMove(GameState currentBoard) {
-        int myMove;
         GameState clonedBoard = currentBoard.clone();
         GameNode root;
         int maxLevel = 2;
+        
+        // used to check the time left to perform the calculation
         long start = currentTimeMillis();
         long lastDuration = 0;
+        
+        // minMax value calculated for the current maxLevel
         int currentMax;
 
+        // iterative deepening is performed here, if we have enough time left, we go deeper
         do {
             root = new GameNode(clonedBoard, 0);
             currentMax = expandTree(root, maxLevel);
             lastDuration = currentTimeMillis() - lastDuration - start;
             System.out.println("depth : " + maxLevel + " in " + lastDuration + "ms");
-            maxLevel += 1;
+            maxLevel++;
         } while (currentTimeMillis() + Math.pow(lastDuration, 1.35) - start < 5000 && !stop);
-        
+
+        // this part is to choose a random move when we have some moves with the same minMax value
         ArrayList<Integer> possibleMoves = new ArrayList<>();
         for (GameNode c : root.children) {
             if (c.minMax == currentMax) {
                 possibleMoves.add(c.move);
             }
         }
-
         Random rand = new Random();
         int randomNum = rand.nextInt(possibleMoves.size());
         int move = possibleMoves.get(randomNum);
+        
         System.out.println("move choosen : " + move);
         System.out.println(currentBoard.getSeeds(move, player) + " pubbles moved");
-        System.out.println("move n° " + moveNb++ +" / player " + player);
+        System.out.println("move n° " + moveNb++ + " / player " + player);
         System.out.println("-------");
 
         return move;
     }
 
     public int expandTree(GameNode node, int maxLevel) {
-        
+
         int validMoves = node.state.getNoValidMoves(node.state.getNextPlayer());
         Integer minMax = null;
-        if (node.level < maxLevel && validMoves > 0) {
+        
+        if (node.level < maxLevel && validMoves > 0) {  //general case of the recursive fonction            
             for (int move = 1; move <= 6 && !pruning(minMax, node); move++) {
                 if (node.state.moveIsPossible(move)) {
-                    GameState childState = node.state.clone();
-                    childState.makeMove(move);
-                    GameNode child = new GameNode(childState, node.level + 1, move);
-                    node.addChild(child);
+                    GameNode child = node.addChild(move);
                     minMax = minMax(node.state, minMax, expandTree(child, maxLevel));
                 }
             }
-        } else if (validMoves == 0) {
+            
+        } else if (validMoves == 0) { // stop case = leaf of the game tree            
             stop = true;
             minMax = utility(node.state);
-        } else {
+        
+        
+        } else { // stop case = node of the game tree but maxLevel reached            
             stop = false;
             minMax = evaluation(node.state);
         }
+        
         node.minMax = minMax;
         return minMax;
     }
@@ -272,6 +279,7 @@ public class AIClient implements Runnable {
         return utility(state);
     }
 
+    // object used to store the game tree
     public class GameNode {
 
         public GameNode parent;
@@ -292,9 +300,15 @@ public class AIClient implements Runnable {
             this.move = move;
         }
 
-        public void addChild(GameNode child) {
+        public GameNode addChild(int move) {
+            GameState childState = this.state.clone();
+            childState.makeMove(move);
+            GameNode child = new GameNode(childState, this.level + 1, move);
+
             child.parent = this;
             children.add(child);
+
+            return child;
         }
     }
 
