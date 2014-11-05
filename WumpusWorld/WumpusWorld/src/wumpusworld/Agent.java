@@ -1,5 +1,7 @@
 package wumpusworld;
 
+import com.parctechnologies.eclipse.*;
+
 /**
  * Interface for creating a Wumpus World solver
  * agent.
