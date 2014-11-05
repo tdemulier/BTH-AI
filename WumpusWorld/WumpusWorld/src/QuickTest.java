@@ -49,7 +49,20 @@ public class QuickTest
     
     File eclipseProgram = new File("src\\wumpusworld\\test.pl");
     eclipse.compile(eclipseProgram);
-    eclipse.rpc("test(truc)");
+        
+    CompoundTerm result = eclipse.rpc("test2(X, Y)");
+
+    // The top-level functor of the goal term is ",". 
+    // The first and second arguments of the goal term are the two subgoals
+    // and we can safely cast these as CompoundTerms.
+    //CompoundTerm firstGoal = (CompoundTerm) result.arg(1);
+    // X is the first argument of the first goal.
+    Object firstGoalFirstArg = result.arg(1);
+    Object secondGoalFirstArg = result.arg(2);
+    // Y is the first argument of the second goal.
+
+    System.out.println("X = "+firstGoalFirstArg);
+    System.out.println("Y = "+secondGoalFirstArg);
 
     // Destroy the Eclipse process
     ((EmbeddedEclipse) eclipse).destroy();
