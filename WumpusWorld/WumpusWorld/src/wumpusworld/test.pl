@@ -55,17 +55,71 @@ getVarList(Board,List):-
 	).
 	
 pitConst(Board):-
-	(foreach(s(_,_,P1,X1,Y1),Board),param(Board) do
-		(foreach(s(_,B2,_,X2,Y2),Board),param(P1,X1, Y1) do
+	(foreach(s(V1,_,P1,X1,Y1),Board),param(Board) do
+		(foreach(s(_,B2,_,X2,Y2),Board),param(P1,X1,Y1) do
 			(
 				(((abs(X1 - X2) #= 1 and	Y1 #= Y2) or (X1 #= X2 and	abs(Y1 - Y2) #= 1))
 				and(P1 #= 1)) => (B2 #= 1)
 			)
 		)
 	).
+	
+breezeConst1(Board):-
+	(foreach(s(_,B1,_,X1,Y1),Board),param(Board) do
+		(foreach(s(V2,_,P2,X2,Y2),Board),param(B1,X1,Y1) do
+			(
+				(((abs(X1 - X2) #= 1 and	Y1 #= Y2) or (X1 #= X2 and	abs(Y1 - Y2) #= 1))
+				and(B1 #= 1) and (V2 #=0)) => (P2 #= 2)
+			)
+		)
+	).
+	
+breezeConst2(Board):-
+	(foreach(s(_,B1,_,X1,Y1),Board),param(Board) do
+		neighboors(X1,Y1,Board,L1),
+		(foreach(s(_,_,P2,_,_),L1),param(L1,B1) do
+			delete(s(_,_,P2,_,_), L1, L2),
+			(foreach(S,L2),param(B1,P2) do				
+				((B1 #= 1) and (P3 #= 0)) => (P2 #= 1)
+			)
+		)
+	).
+	
+empty(s(_,_,P,_,_)):-
+	P #= 0.
+	
+member(1,[M|_],M).
+member(N,[_|R],M):-
+        N > 1,
+	N1 is N - 1,
+	member(N1,R,M).
+
+neighboor(X,Y,B,S):-
+        Y < 4,
+        N is (X-1)*4+Y + 1,
+	member(N,B,S).
+neighboor(X,Y,B,S):-
+        Y > 1,
+        N is (X-1)*4+Y - 1,
+	member(N,B,S).	
+neighboor(X,Y,B,S):-
+        X < 4,
+        N is (X-1)*4+Y + 4,
+	member(N,B,S).
+neighboor(X,Y,B,S):-
+        X > 1,
+        N is (X-1)*4+Y - 4,
+	member(N,B,S).
+	
+neighboors(X,Y,B,L):-
+	findall(S,neighboor(X,Y,B,S),L).
+	
+const(B):-
+	pitConst(B),
+	breezeConst1(B).
 
 run(B):-
 	board(B),
 	getVarList(B,L),
-	pitConst(B),
+	const(B),
 	labeling(L).
