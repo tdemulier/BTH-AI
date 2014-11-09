@@ -1,13 +1,15 @@
 package ai;
 
-import ai.Global;
 import java.io.*;
 import java.net.*;
 import javax.swing.*;
 import java.awt.*;
 import static java.lang.System.currentTimeMillis;
 import java.util.ArrayList;
+import java.util.HashMap;
+import java.util.Map;
 import java.util.Random;
+import javafx.util.Pair;
 import kalaha.*;
 
 /**
@@ -29,6 +31,7 @@ public class AIClient implements Runnable {
     private boolean connected;
     private boolean stop = false;
     private int moveNb = 1;
+    private HashMap<ArrayList, Pair> openingBook = new HashMap<>();
 
     /**
      * Creates a new client.
@@ -51,6 +54,19 @@ public class AIClient implements Runnable {
         } catch (Exception ex) {
             addText("Unable to connect to server");
             return;
+        }
+
+        try {
+            FileInputStream fis = new FileInputStream("openingBook2");
+            ObjectInputStream ois = new ObjectInputStream(fis);
+            openingBook = (HashMap) ois.readObject();
+            ois.close();
+            fis.close();
+        } catch (IOException ioe) {
+            ioe.printStackTrace();
+        } catch (ClassNotFoundException c) {
+            System.out.println("Class not found");
+            c.printStackTrace();
         }
     }
 
@@ -192,39 +208,89 @@ public class AIClient implements Runnable {
         GameState clonedBoard = currentBoard.clone();
         GameNode root;
         int maxLevel = 2;
-        
+
         // used to check the time left to perform the calculation
         long start = currentTimeMillis();
         long lastDuration = 0;
-        
+
         // minMax value calculated for the current maxLevel
         int currentMax;
 
-        // iterative deepening is performed here, if we have enough time left, we go deeper
-        do {
-            root = new GameNode(clonedBoard, 0);
-            currentMax = expandTree(root, maxLevel);
-            lastDuration = currentTimeMillis() - lastDuration - start;
-            System.out.println("depth : " + maxLevel + " in " + lastDuration + "ms");
-            maxLevel++;
-        } while (currentTimeMillis() + Math.pow(lastDuration, 1.35) - start < 5000 && !stop);
+        //move to return
+        int move = -1;
 
-        // this part is to choose a random move when we have some moves with the same minMax value
-        ArrayList<Integer> possibleMoves = new ArrayList<>();
-        for (GameNode c : root.children) {
-            if (c.minMax == currentMax) {
-                possibleMoves.add(c.move);
+        //opening book usage for first move
+        double scoreMax = Double.NEGATIVE_INFINITY;
+        double scoreMin = Double.POSITIVE_INFINITY;
+        if (moveNb == 1) {
+            if (player == 1) { // first move of player 1
+                for (Map.Entry<ArrayList, Pair> entry : openingBook.entrySet()) {
+                    Pair result = entry.getValue();
+                    ArrayList<Pair> moveList = entry.getKey();
+                    if ((double) result.getKey() > scoreMax) {
+                        scoreMax = (double) result.getKey();
+                        move = (int) moveList.get(0).getKey();
+                    }
+                }
+            } else { // first move of player 2 => the first part is to retrieve wich moves have been made by the oponent since it's not stored in the Gamestate
+                ArrayList<Pair> moveList = new ArrayList<>();
+                for (int i = 1; i <= 6; i++) {
+                    GameState newBoard = new GameState();
+                    newBoard.makeMove(i);
+                    if(newBoard.toString().equals(currentBoard.toString())) {
+                        moveList.add(new Pair(i,1));
+                        break;
+                    } else {
+                        for (int j = 1; j <= 6; j++) {
+                            GameState newBoard2 = newBoard.clone();
+                            newBoard2.makeMove(j);
+                            if(newBoard2.toString().equals(currentBoard.toString())) {
+                                moveList.add(new Pair(i,1));
+                                moveList.add(new Pair(j,1));
+                                break;
+                            }
+                        }
+                    }
+                }
+                for (int i = 1; i <= 6; i++) {
+                    ArrayList<Pair> moveList2 = (ArrayList<Pair>) moveList.clone();
+                    moveList2.add(new Pair(i, 2));
+                    Pair result = openingBook.get(moveList2);
+                    if (result != null && (double) result.getKey() < scoreMin) {
+                        scoreMin = (double) result.getKey();
+                        move = i;
+                    }
+                }
             }
+        } else {
+
+            // iterative deepening is performed here, if we have enough time left, we go deeper
+            do {
+                root = new GameNode(clonedBoard, 0);
+                currentMax = expandTree(root, maxLevel);
+                lastDuration = currentTimeMillis() - lastDuration - start;
+                System.out.println("depth : " + maxLevel + " in " + lastDuration + "ms");
+                maxLevel++;
+            } while (currentTimeMillis() + Math.pow(lastDuration, 1.4) - start < 5000 && !stop);
+
+            // this part is to choose a random move when we have some moves with the same minMax value
+            ArrayList<Integer> possibleMoves = new ArrayList<>();
+            for (GameNode c : root.children) {
+                if (c.minMax == currentMax) {
+                    possibleMoves.add(c.move);
+                }
+            }
+            Random rand = new Random();
+            int randomNum = rand.nextInt(possibleMoves.size());
+            move = possibleMoves.get(randomNum);
         }
-        Random rand = new Random();
-        int randomNum = rand.nextInt(possibleMoves.size());
-        int move = possibleMoves.get(randomNum);
-        
+
         System.out.println("move choosen : " + move);
         System.out.println(currentBoard.getSeeds(move, player) + " pubbles moved");
-        System.out.println("move n° " + moveNb++ + " / player " + player);
+        System.out.println("move n° " + moveNb + " / player " + player);
         System.out.println("-------");
 
+        moveNb++;
         return move;
     }
 
@@ -232,7 +298,7 @@ public class AIClient implements Runnable {
 
         int validMoves = node.state.getNoValidMoves(node.state.getNextPlayer());
         Integer minMax = null;
-        
+
         if (node.level < maxLevel && validMoves > 0) {  //general case of the recursive fonction            
             for (int move = 1; move <= 6 && !pruning(minMax, node); move++) {
                 if (node.state.moveIsPossible(move)) {
@@ -240,17 +306,16 @@ public class AIClient implements Runnable {
                     minMax = minMax(node.state, minMax, expandTree(child, maxLevel));
                 }
             }
-            
+
         } else if (validMoves == 0) { // stop case = leaf of the game tree            
             stop = true;
             minMax = utility(node.state);
-        
-        
+
         } else { // stop case = node of the game tree but maxLevel reached            
             stop = false;
             minMax = evaluation(node.state);
         }
-        
+
         node.minMax = minMax;
         return minMax;
     }
