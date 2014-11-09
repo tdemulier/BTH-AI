@@ -262,7 +262,9 @@ public class AIClient implements Runnable {
                     }
                 }
             }
-        } else {
+        } 
+        
+        if (move == -1) { // move = -1 if no move was found in the opening book for the first move or if it's not the first move
 
             // iterative deepening is performed here, if we have enough time left, we go deeper
             do {
