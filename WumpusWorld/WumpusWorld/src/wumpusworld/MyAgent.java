@@ -1,96 +1,116 @@
 package wumpusworld;
 
 /**
- * Contans starting code for creating your own Wumpus World agent.
- * Currently the agent only make a random decision each turn.
- * 
+ * Contans starting code for creating your own Wumpus World agent. Currently the
+ * agent only make a random decision each turn.
+ *
  * @author Johan Hagelbäck
  */
-public class MyAgent implements Agent
-{
+public class MyAgent implements Agent {
+
+    public class Square {
+        public boolean breeze;
+        public boolean stench;
+        public boolean glitter;
+        public boolean pit;
+        public boolean wumpus;
+        public boolean explored;
+        public boolean safe;
+
+        public Square() {
+            breeze = false;
+            stench = false;
+            glitter = false;
+            pit = false;
+            wumpus = false;
+            explored = false;
+            safe = true;
+        }
+    }
+
     private World w;
-    
+
+    private Square[][] map;
+    private boolean killed_wumpus = false;
+    private int posX, posY;
+
     /**
      * Creates a new instance of your solver agent.
-     * 
-     * @param world Current world state 
+     *
+     * @param world Current world state
      */
-    public MyAgent(World world)
-    {
+    public MyAgent(World world) {
         w = world;
+
+        // init the internal map representation
+        int size = world.getSize();
+        map = new Square[size][size];
     }
-    
+
+    private void sense() {
+        map[posX][posY].explored = true;
+
+        //Test the environment
+        if (w.hasBreeze(posX, posY)) {
+            System.out.println("I am in a Breeze");
+            map[posX][posY].breeze = true;
+        }
+        if (w.hasStench(posX, posY)) {
+            System.out.println("I am in a Stench");
+            map[posX][posY].stench = true;
+        }
+        if (w.hasPit(posX, posY)) {
+            System.out.println("I am in a Pit");
+            map[posX][posY].pit = true;
+        }
+        if (!w.hasPit(posX, posY)) {
+            map[posX][posY].pit = true;
+        }
+        if (w.hasGlitter(posX, posY)) {
+            System.out.println("I am in a Glitter");
+            map[posX][posY].glitter = true;
+        }
+    }
+
+    private square[] neighboors(){
+        
+    }
+
+    private void updateMap() {
+        if (breeze[posX][posY]) {
+
+        }
+    }
+
     /**
      * Asks your solver agent to execute an action.
      */
-    public void doAction()
-    {
+    public void doAction() {
         //Location of the player
-        int cX = w.getPlayerX();
-        int cY = w.getPlayerY();
-        
-        //Basic action:
-        //Grab Gold if we can.
-        if (w.hasGlitter(cX, cY))
-        {
-            w.doAction(World.A_GRAB);
-            return;
-        }
-        
+        posX = w.getPlayerX();
+        posY = w.getPlayerY();
+
+        sense();
+        updateMap();
+
         //Basic action:
         //We are in a pit. Climb up.
-        if (w.isInPit())
-        {
+        if (w.isInPit()) {
             w.doAction(World.A_CLIMB);
             return;
         }
-        
-        //Test the environment
-        if (w.hasBreeze(cX, cY))
-        {
-            System.out.println("I am in a Breeze");
-        }
-        if (w.hasStench(cX, cY))
-        {
-            System.out.println("I am in a Stench");
-        }
-        if (w.hasPit(cX, cY))
-        {
-            System.out.println("I am in a Pit");
-        }
-        if (w.getDirection() == World.DIR_RIGHT)
-        {
+
+        if (w.getDirection() == World.DIR_RIGHT) {
             System.out.println("I am facing Right");
         }
-        if (w.getDirection() == World.DIR_LEFT)
-        {
+        if (w.getDirection() == World.DIR_LEFT) {
             System.out.println("I am facing Left");
         }
-        if (w.getDirection() == World.DIR_UP)
-        {
+        if (w.getDirection() == World.DIR_UP) {
             System.out.println("I am facing Up");
         }
-        if (w.getDirection() == World.DIR_DOWN)
-        {
+        if (w.getDirection() == World.DIR_DOWN) {
             System.out.println("I am facing Down");
-        }
-        
-        //Random move actions
-        int rnd = (int)(Math.random() * 5);
-        if (rnd == 0) 
-        {
-            w.doAction(World.A_TURN_LEFT);
-            return;
-        }
-        if (rnd == 1)
-        {
-            w.doAction(World.A_TURN_RIGHT);
-            return;
-        }
-        if (rnd >= 2)
-        {
-            w.doAction(World.A_MOVE);
-            return;
         }
     }
 }
