@@ -10,21 +10,19 @@ import java.util.ArrayList;
  */
 public class MyAgent implements Agent {
 
-    public class Square {
+    private class Square {
 
-        public boolean breeze;
-        public boolean stench;
-        public boolean glitter;
-        public int pit; // value {-1,0,1,2} for {no idea, no pit, may be, sure}
-        public int wumpus; // same
-        public boolean explored;
-        public boolean safe;
-        public int x, y;
+        private boolean breeze;
+        private boolean stench;
+        private int pit; // value {-1,0,1,2} for {no idea, no pit, may be, sure}
+        private int wumpus; // same
+        private boolean explored;
+        private boolean safe;
+        private int x, y;
 
-        public Square(int posX, int posY) {
+        private Square(int posX, int posY) {
             breeze = false;
             stench = false;
-            glitter = false;
             pit = -1;
             wumpus = -1;
             explored = false;
@@ -33,14 +31,20 @@ public class MyAgent implements Agent {
             y = posY;
         }
 
-        public void print() {
-            System.out.print(" | b : " + breeze + ", s : " + stench + ", g : " + glitter + ", p : " + pit + ", w : " + wumpus + ", e : " + explored + ", s : " + safe + " | ");
+        private void print() {
+            System.out.print(" | b : " + breeze + ", s : " + stench + ", p : " + pit + ", w : " + wumpus + ", e : " + explored + ", s : " + safe + " | ");
         }
     }
 
     private World w;
     private int size;
+    private static final int WUMPUS_VALUE = -1000;
+    private static final int PIT_VALUE = -1000;
+    private static final int ARROW_VALUE = -10;
+    private static final int ACTION_VALUE = -1;
+    private static final int GOLD_VALUE = 1000;
 
+    private Square target;
     private Square[][] map;
     private boolean found_wumpus = false;
     private boolean killed_wumpus = false;
@@ -89,10 +93,6 @@ public class MyAgent implements Agent {
         }
         if (!w.hasWumpus(posX + 1, posY + 1)) {
             map[posX][posY].wumpus = 0;
-        }
-        if (w.hasGlitter(posX + 1, posY + 1)) {
-            System.out.println("I am in a Glitter");
-            map[posX][posY].glitter = true;
         }
     }
 
@@ -187,7 +187,7 @@ public class MyAgent implements Agent {
                 }
             }
         }
-        
+
         if (!found_wumpus) {
             for (int i = 0; i < size; i++) {
                 for (int j = 0; j < size; j++) {
@@ -221,6 +221,103 @@ public class MyAgent implements Agent {
         }
     }
 
+    private int squareScore(Square s) {
+        int score = 0;
+        if (s.wumpus == 1) {
+            score += WUMPUS_VALUE * 0.75;
+        }
+        if (s.wumpus == 2) {
+            score += WUMPUS_VALUE;
+        }
+        if (s.pit == 1) {
+            score += PIT_VALUE * 0.5;
+        }
+        if (s.pit == 2) {
+            score += PIT_VALUE;
+        }
+        return score;
+    }
+
+    private int movingScore(Square s0, Square s1, Square s2) {
+        int nbAction = 0;
+        if (s0 == s1) {
+            if (((w.getDirection() == World.DIR_RIGHT || w.getDirection() == World.DIR_LEFT) && s1.x == s2.x)
+                    || ((w.getDirection() == World.DIR_UP || w.getDirection() == World.DIR_DOWN) && s1.y == s2.y)) {
+                nbAction += 2;
+            } else if ((w.getDirection() == World.DIR_RIGHT && s1.y == s2.y && s1.x < s2.x)
+                    || (w.getDirection() == World.DIR_LEFT && s1.y == s2.y && s1.x > s2.x)
+                    || (w.getDirection() == World.DIR_UP && s1.x == s2.x && s1.y < s2.y)
+                    || (w.getDirection() == World.DIR_DOWN && s1.x == s2.x && s1.y > s2.y)) {
+                nbAction += 1;
+            } else {
+                nbAction += 3;
+            }
+        } else {
+            if (s1.pit == 2 || s1.pit == 1) {
+                nbAction += 1;
+            }
+            if (s0 == s2) {
+                nbAction += 3;
+            } else if ((s0.x == s1.x && s1.x == s2.x) || (s0.y == s1.y && s1.y == s2.y)) {
+                nbAction += 1;
+            } else {
+                nbAction += 2;
+            }
+        }
+        return nbAction * ACTION_VALUE;
+    }
+
+    private int globalScore(Square s0, Square s1, boolean[][] visited) {
+        int score = Integer.MIN_VALUE;
+
+        if (visited[s1.x][s1.y]) {
+            score = -100000;
+        } else if (s1.explored) {
+            visited[s1.x][s1.y] = true;
+            ArrayList<Square> neighboors = neighboors(s1.x, s1.y);
+            for (Square s2 : neighboors) {
+                boolean[][] v2 = visited.clone();
+                int temp = squareScore(s2) + movingScore(s0, s1, s2) + globalScore(s1, s2, v2);
+                if (temp > score) {
+                    score = temp;
+                    if (s0 == s1) {
+                        target = s2;
+                    }
+                }
+            }
+        } else {
+            score = 0;
+        }
+        return score;
+    }
+
+    private void bestAction() {
+        String action;
+        int score = globalScore(map[posX][posY], map[posX][posY], new boolean[size][size]);
+
+        if (w.isInPit()) {
+            action = World.A_CLIMB;
+        } else if (w.hasGlitter(posX + 1, posY + 1)) {
+            action = World.A_GRAB;
+        } else if ((w.getDirection() == World.DIR_RIGHT && posY == target.y && posX < target.x)
+                || (w.getDirection() == World.DIR_LEFT && posY == target.y && posX > target.x)
+                || (w.getDirection() == World.DIR_UP && posX == target.x && posY < target.y)
+                || (w.getDirection() == World.DIR_DOWN && posX == target.x && posY > target.y)) {
+            action = World.A_MOVE;
+        } else if ((w.getDirection() == World.DIR_RIGHT && posY > target.y && posX == target.x)
+                || (w.getDirection() == World.DIR_LEFT && posY < target.y && posX == target.x)
+                || (w.getDirection() == World.DIR_UP && posX < target.x && posY == target.y)
+                || (w.getDirection() == World.DIR_DOWN && posX > target.x && posY == target.y)){
+            action = World.A_TURN_RIGHT;
+        } else {
+            action = World.A_TURN_LEFT;
+        }
+
+        w.doAction(action);
+        System.out.println(action + " " + target.x + " " + target.y);
+        System.out.println(score);
+    }
+
     /**
      * Asks your solver agent to execute an action.
      */
@@ -231,20 +328,13 @@ public class MyAgent implements Agent {
 
         sense();
         updateMap();
+        bestAction();
 
         for (int j = size - 1; j >= 0; j--) {
-            System.out.println("\n");
+            System.out.println("");
             for (int i = 0; i < size; i++) {
                 map[i][j].print();
             }
-            System.out.println("\n");
-        }
-
-        //Basic action:
-        //We are in a pit. Climb up.
-        if (w.isInPit()) {
-            w.doAction(World.A_CLIMB);
-            return;
         }
 
         if (w.getDirection() == World.DIR_RIGHT) {
@@ -261,18 +351,18 @@ public class MyAgent implements Agent {
         }
 
         //Random move actions
-        int rnd = (int) (Math.random() * 5);
-        if (rnd == 0) {
-            w.doAction(World.A_TURN_LEFT);
-            return;
-        }
-        if (rnd == 1) {
-            w.doAction(World.A_TURN_RIGHT);
-            return;
-        }
-        if (rnd >= 2) {
-            w.doAction(World.A_MOVE);
-            return;
-        }
+//        int rnd = (int) (Math.random() * 5);
+//        if (rnd == 0) {
+//            w.doAction(World.A_TURN_LEFT);
+//            return;
+//        }
+//        if (rnd == 1) {
+//            w.doAction(World.A_TURN_RIGHT);
+//            return;
+//        }
+//        if (rnd >= 2) {
+//            w.doAction(World.A_MOVE);
+//            return;
+//        }
     }
 }
