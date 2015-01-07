@@ -18,7 +18,7 @@ public class MyAgent implements Agent {
         private int wumpus; // same
         private boolean explored;
         private boolean safe;
-        private int x, y;
+        private final int x, y;
 
         private Square(int posX, int posY) {
             breeze = false;
@@ -37,16 +37,19 @@ public class MyAgent implements Agent {
     }
 
     private World w;
-    private int size;
-    private static final int WUMPUS_VALUE = -1000;
-    private static final int PIT_VALUE = -1000;
-    private static final int ARROW_VALUE = -10;
+    private final int size;
+    private static final int WUMPUS_VALUE_SURE = -2000;
+    private static final int WUMPUS_VALUE_NOTSURE = -1500;
+    private static final int PIT_VALUE_SURE = -1000;
+    private static final int PIT_VALUE_NOTSURE = -500;
     private static final int ACTION_VALUE = -1;
-    private static final int GOLD_VALUE = 1000;
+    private static final int ALREADY_VISITED_SQUARE = -10000;
+    private static final int HUNT_WUMPUS = 500;
 
     private Square target;
     private Square[][] map;
     private boolean found_wumpus = false;
+    private Square wumpusSquare;
     private boolean killed_wumpus = false;
     private int posX, posY;
 
@@ -82,8 +85,6 @@ public class MyAgent implements Agent {
     }
 
     private void sense() {
-        map[posX][posY].explored = true;
-
         //Test the environment
         if (w.hasBreeze(posX + 1, posY + 1)) {
             System.out.println("I am in a Breeze");
@@ -107,6 +108,9 @@ public class MyAgent implements Agent {
         if (!w.hasWumpus(posX + 1, posY + 1)) {
             map[posX][posY].wumpus = 0;
         }
+        if (!w.wumpusAlive()) {
+            killed_wumpus = true;
+        }
     }
 
     private ArrayList<Square> neighboors(int x, int y) {
@@ -128,6 +132,10 @@ public class MyAgent implements Agent {
     }
 
     private void updateMap() {
+        if (!map[posX][posY].explored) {
+            map[posX][posY].explored = true;
+        }
+
         ArrayList<Square> neighboors = neighboors(posX, posY);
 
         if (map[posX][posY].breeze) {
@@ -185,23 +193,24 @@ public class MyAgent implements Agent {
             }
         }
 
-        for (int i = 0; i < size; i++) {
-            for (int j = 0; j < size; j++) {
-                if (map[i][j].stench) {
-                    ArrayList<Square> neighboors2 = neighboors(i, j);
-                    for (Square s : neighboors2) {
-                        ArrayList<Square> neighboors3 = neighboors(s.x, s.y);
-                        for (Square s2 : neighboors3) {
-                            if (!s2.stench && s2.explored) {
-                                s.wumpus = 0;
+        boolean reset_wumpus_square = true;
+        if (!found_wumpus) {
+            for (int i = 0; i < size; i++) {
+                for (int j = 0; j < size; j++) {
+                    if (map[i][j].stench) {
+                        ArrayList<Square> neighboors2 = neighboors(i, j);
+                        for (Square s : neighboors2) {
+                            ArrayList<Square> neighboors3 = neighboors(s.x, s.y);
+                            for (Square s2 : neighboors3) {
+                                if (!s2.stench && s2.explored) {
+                                    s.wumpus = 0;
+                                }
                             }
                         }
                     }
                 }
             }
-        }
-
-        if (!found_wumpus) {
+            
             for (int i = 0; i < size; i++) {
                 for (int j = 0; j < size; j++) {
                     if (map[i][j].stench) {
@@ -217,12 +226,40 @@ public class MyAgent implements Agent {
                                 if (s.wumpus != 0) {
                                     s.wumpus = 2;
                                     found_wumpus = true;
+                                    wumpusSquare = s;
                                 }
                             }
                         }
                     }
                 }
             }
+
+            for (int i = 0; i < size; i++) {
+                for (int j = 0; j < size; j++) {
+                    ArrayList<Square> neighboors2 = neighboors(i, j);
+                    int nbstench = 0;
+                    for (Square s : neighboors2) {
+                        if (s.stench) {
+                            nbstench++;
+                        }
+                    }
+                    if (nbstench > 1) {
+                        map[i][j].wumpus = 2;
+                        found_wumpus = true;
+                        wumpusSquare = map[i][j];
+                    }
+                }
+            }
+        } else if (found_wumpus && reset_wumpus_square) {
+            for (int i = 0; i < size; i++) {
+                for (int j = 0; j < size; j++) {
+                    if (map[i][j].wumpus != 2) {
+                        map[i][j].wumpus = 0;
+                    }
+                }
+
+            }
+            reset_wumpus_square = false;
         }
 
         for (int i = 0; i < size; i++) {
@@ -237,16 +274,16 @@ public class MyAgent implements Agent {
     private int squareScore(Square s) {
         int score = 0;
         if (s.wumpus == 1) {
-            score += WUMPUS_VALUE * 0.75;
+            score += WUMPUS_VALUE_NOTSURE;
         }
         if (s.wumpus == 2) {
-            score += WUMPUS_VALUE;
+            score += WUMPUS_VALUE_SURE;
         }
         if (s.pit == 1) {
-            score += PIT_VALUE * 0.5;
+            score += PIT_VALUE_NOTSURE;
         }
         if (s.pit == 2) {
-            score += PIT_VALUE;
+            score += PIT_VALUE_SURE;
         }
         return score;
     }
@@ -284,7 +321,7 @@ public class MyAgent implements Agent {
         int score = Integer.MIN_VALUE;
 
         if (visited[s1.x][s1.y]) {
-            score = -100000;
+            score = ALREADY_VISITED_SQUARE;
         } else if (s1.explored) {
             visited[s1.x][s1.y] = true;
             ArrayList<Square> neighboors = neighboors(s1.x, s1.y);
@@ -297,6 +334,8 @@ public class MyAgent implements Agent {
                     }
                 }
             }
+        } else if (found_wumpus && !killed_wumpus && (wumpusSquare.x == s1.x || wumpusSquare.y == s1.y)) {
+            score = HUNT_WUMPUS;
         } else {
             score = 0;
         }
@@ -311,6 +350,20 @@ public class MyAgent implements Agent {
             action = World.A_CLIMB;
         } else if (w.hasGlitter(posX + 1, posY + 1)) {
             action = World.A_GRAB;
+        } else if (found_wumpus && !killed_wumpus && (wumpusSquare.x == posX || wumpusSquare.y == posY)) {
+            if ((w.getDirection() == World.DIR_RIGHT && posY == wumpusSquare.y && posX < wumpusSquare.x)
+                    || (w.getDirection() == World.DIR_LEFT && posY == wumpusSquare.y && posX > wumpusSquare.x)
+                    || (w.getDirection() == World.DIR_UP && posX == wumpusSquare.x && posY < wumpusSquare.y)
+                    || (w.getDirection() == World.DIR_DOWN && posX == wumpusSquare.x && posY > wumpusSquare.y)) {
+                action = World.A_SHOOT;
+            } else if ((w.getDirection() == World.DIR_RIGHT && posY > wumpusSquare.y && posX == wumpusSquare.x)
+                    || (w.getDirection() == World.DIR_LEFT && posY < wumpusSquare.y && posX == wumpusSquare.x)
+                    || (w.getDirection() == World.DIR_UP && posX < wumpusSquare.x && posY == wumpusSquare.y)
+                    || (w.getDirection() == World.DIR_DOWN && posX > wumpusSquare.x && posY == wumpusSquare.y)) {
+                action = World.A_TURN_RIGHT;
+            } else {
+                action = World.A_TURN_LEFT;
+            }
         } else if ((w.getDirection() == World.DIR_RIGHT && posY == target.y && posX < target.x)
                 || (w.getDirection() == World.DIR_LEFT && posY == target.y && posX > target.x)
                 || (w.getDirection() == World.DIR_UP && posX == target.x && posY < target.y)
@@ -326,13 +379,14 @@ public class MyAgent implements Agent {
         }
 
         w.doAction(action);
-        System.out.println(action + " " + target.x + " " + target.y);
+        System.out.println("\n" + action + " " + target.x + " " + target.y);
         System.out.println(score);
     }
 
     /**
      * Asks your solver agent to execute an action.
      */
+    @Override
     public void doAction() {
         //Location of the player
         posX = w.getPlayerX() - 1;
@@ -343,6 +397,7 @@ public class MyAgent implements Agent {
         bestAction();
 
         for (int j = size - 1; j >= 0; j--) {
+            System.out.println("");
             for (int i = 0; i < size; i++) {
                 map[i][j].print();
             }
