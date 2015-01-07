@@ -68,6 +68,19 @@ public class MyAgent implements Agent {
         }
     }
 
+    private static boolean[][] cloneVisited(boolean[][] array) {
+        int rows = array.length;
+
+        //clone the 'shallow' structure of array
+        boolean[][] newArray = (boolean[][]) array.clone();
+        //clone the 'deep' structure of array
+        for (int row = 0; row < rows; row++) {
+            newArray[row] = (boolean[]) array[row].clone();
+        }
+
+        return newArray;
+    }
+
     private void sense() {
         map[posX][posY].explored = true;
 
@@ -276,8 +289,7 @@ public class MyAgent implements Agent {
             visited[s1.x][s1.y] = true;
             ArrayList<Square> neighboors = neighboors(s1.x, s1.y);
             for (Square s2 : neighboors) {
-                boolean[][] v2 = visited.clone();
-                int temp = squareScore(s2) + movingScore(s0, s1, s2) + globalScore(s1, s2, v2);
+                int temp = squareScore(s2) + movingScore(s0, s1, s2) + globalScore(s1, s2, cloneVisited(visited));
                 if (temp > score) {
                     score = temp;
                     if (s0 == s1) {
@@ -307,7 +319,7 @@ public class MyAgent implements Agent {
         } else if ((w.getDirection() == World.DIR_RIGHT && posY > target.y && posX == target.x)
                 || (w.getDirection() == World.DIR_LEFT && posY < target.y && posX == target.x)
                 || (w.getDirection() == World.DIR_UP && posX < target.x && posY == target.y)
-                || (w.getDirection() == World.DIR_DOWN && posX > target.x && posY == target.y)){
+                || (w.getDirection() == World.DIR_DOWN && posX > target.x && posY == target.y)) {
             action = World.A_TURN_RIGHT;
         } else {
             action = World.A_TURN_LEFT;
@@ -331,38 +343,10 @@ public class MyAgent implements Agent {
         bestAction();
 
         for (int j = size - 1; j >= 0; j--) {
-            System.out.println("");
             for (int i = 0; i < size; i++) {
                 map[i][j].print();
             }
         }
-
-        if (w.getDirection() == World.DIR_RIGHT) {
-            System.out.println("I am facing Right");
-        }
-        if (w.getDirection() == World.DIR_LEFT) {
-            System.out.println("I am facing Left");
-        }
-        if (w.getDirection() == World.DIR_UP) {
-            System.out.println("I am facing Up");
-        }
-        if (w.getDirection() == World.DIR_DOWN) {
-            System.out.println("I am facing Down");
-        }
-
-        //Random move actions
-//        int rnd = (int) (Math.random() * 5);
-//        if (rnd == 0) {
-//            w.doAction(World.A_TURN_LEFT);
-//            return;
-//        }
-//        if (rnd == 1) {
-//            w.doAction(World.A_TURN_RIGHT);
-//            return;
-//        }
-//        if (rnd >= 2) {
-//            w.doAction(World.A_MOVE);
-//            return;
-//        }
+        System.out.println("");
     }
 }
